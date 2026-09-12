@@ -1,3 +1,6 @@
+import { checkDomain, validDomain } from "@/lib/domain-availability";
+import { currentPaymentMode } from "@/lib/paystack-config";
+
 const packagePrices: Record<string, number> = {
   ".com": 2000,
   ".org": 2000,
@@ -6,11 +9,6 @@ const packagePrices: Record<string, number> = {
 
 function value(input: unknown, limit = 160) {
   return typeof input === "string" ? input.trim().slice(0, limit) : "";
-}
-
-function validDomain(domain: string, extension: string) {
-  const escaped = extension.replace(".", "\\.");
-  return new RegExp(`^(?!-)[a-z0-9-]{2,63}(?<!-)${escaped}$`, "i").test(domain);
 }
 
 function supabaseConnection() {
@@ -53,7 +51,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!packagePrices[extension] || !validDomain(domain, extension)) {
+    if (!packagePrices[extension] || !validDomain(domain) || !domain.endsWith(extension)) {
       return Response.json(
         { error: "Choose a valid .com, .org or .net domain." },
         { status: 400 },
@@ -93,6 +91,10 @@ export async function POST(request: Request) {
     if (existing[0]) {
       return Response.json({ order: existing[0], duplicate: true });
     }
+
+    const registration = await checkDomain(domain);
+    if (registration === "registered") return Response.json({ error: "This domain is already registered. Try another name or extension." }, { status: 409 });
+    if (registration === "unknown") return Response.json({ error: "We could not check the domain registry right now. Please try again shortly; no request was saved." }, { status: 503 });
 
     const id = crypto.randomUUID();
     const reference = `EMT-${Date.now().toString(36).toUpperCase()}-${id.slice(0, 13).toUpperCase()}`;
@@ -135,4 +137,3 @@ export async function POST(request: Request) {
     );
   }
 }
-import { currentPaymentMode } from "@/lib/paystack-config";

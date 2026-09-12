@@ -29,7 +29,7 @@ In **Paystack Live dashboard → Settings → API Keys & Webhooks**, set the liv
 ## Verify while real charging remains off
 
 1. Create a **new** domain request; in Supabase `orders`, its `payment_mode` should be `live`, `status` should be `awaiting_review`.
-2. Independently check registrar availability, current cost, ownership data, and your hosting capacity. Only then edit that row's `status` to exactly `approved`.
+2. The storefront now queries the `.com`, `.org` and `.net` registration records and prevents a new request or checkout when it finds a registered domain. **"No registration record found" does not prove the name can be bought:** independently check availability at the registrar, reserved/premium status, current cost, ownership data, and your hosting capacity. Only then edit that row's `status` to exactly `approved`. A registry outage temporarily blocks requests and new checkout attempts; do not bypass it by accepting payment manually without checking the domain.
 3. At `/order`, use its reference and email. For a .com/.org order confirm it shows **₦28,400** and **Checkout unavailable**. Old test orders stay labeled `TEST ORDER`; they cannot be charged with the live key. An old pending payment link generated at another price must be reconciled manually; do not reuse it.
 4. Verify Vercel Production environment, Paystack live webhook, final quote/markup, business readiness, and the appropriate customer terms. This application does **not** automatically register domains, provision hosting, or email confirmations.
 

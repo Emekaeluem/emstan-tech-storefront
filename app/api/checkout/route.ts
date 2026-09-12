@@ -1,3 +1,4 @@
+import { checkDomain } from "@/lib/domain-availability";
 import { changeOrder, findOrder, fixedNgnPrice, validQuote } from "@/lib/order-payment";
 import { checkoutBaseUrl, checkoutEnabled, currentPaymentMode, paymentSecretKey, usdTestEnabled } from "@/lib/paystack-config";
 
@@ -18,6 +19,9 @@ export async function POST(request: Request) {
       return Response.json({ url: order.payment_url });
     }
     if (order.status !== "approved") return Response.json({ error: "This domain has not been approved for payment. Contact us if you need help." }, { status: 409 });
+    const registration = await checkDomain(order.domain);
+    if (registration === "registered") return Response.json({ error: "This domain now appears registered. No payment was started. Contact Emstan Tech to choose another domain." }, { status: 409 });
+    if (registration === "unknown") return Response.json({ error: "We could not verify the domain registry right now. No payment was started; please try again shortly." }, { status: 503 });
     const currency = body.currency;
     if (currency !== "NGN" && currency !== "USD") return Response.json({ error: "Choose naira or US dollars." }, { status: 400 });
     if (currency === "USD" && (mode === "live" || !usdTestEnabled())) return Response.json({ error: "Direct USD checkout is unavailable for this account. Choose the Naira quote; a supported international card may convert the charge through its issuer." }, { status: 503 });

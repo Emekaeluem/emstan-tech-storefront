@@ -1,18 +1,19 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, Code2, Globe2, HardDrive, Headphones, LockKeyhole, Mail, Search, Server, ShieldCheck, Sparkles } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import type { DomainStatus } from "@/lib/domain-availability";
 
 type Package = { extension: ".com" | ".org" | ".net"; price: number; popular?: boolean };
 const packages: Package[] = [{ extension: ".com", price: 20, popular: true }, { extension: ".org", price: 20 }, { extension: ".net", price: 23 }];
 const benefits = ["Domain registration for one year", "20 GB SSD hosting", "30 professional mailboxes", "AI for WordPress", "AI Website Builder"];
 
 function normalizeName(value: string) {
-  return value.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].replace(/\.[a-z.]+$/i, "").replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "");
+  return value.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].replace(/\.(com|org|net)$/i, "");
 }
 
 export default function Home() {
@@ -22,16 +23,45 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [reference, setReference] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [domainResult, setDomainResult] = useState<{ domain: string; status: DomainStatus } | null>(null);
+  const searchToken = useRef(0);
   const fullDomain = useMemo(() => `${normalizeName(domainName)}${selected.extension}`, [domainName, selected]);
 
-  function startOrder(pkg = selected) {
+  function resetSearch() {
+    searchToken.current++;
+    setChecking(false);
+    setDomainResult(null);
+    setError("");
+  }
+
+  async function startOrder(pkg = selected) {
     const cleaned = normalizeName(domainName);
     setSelected(pkg); setError(""); setReference("");
-    if (!cleaned || cleaned.length < 2) {
-      setError("Enter at least two letters for your domain name.");
+    const domain = `${cleaned}${pkg.extension}`;
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(com|org|net)$/.test(domain) || cleaned.length < 2) {
+      setDomainResult(null);
+      setError("Enter a valid name of 2–63 letters, numbers or hyphens (not at the ends).");
       document.getElementById("domain-search")?.focus(); return;
     }
-    setDomainName(cleaned); setDialogOpen(true);
+    if (domainResult?.domain === domain && domainResult.status === "no_record") {
+      setDomainName(cleaned); setDialogOpen(true); return;
+    }
+    const token = ++searchToken.current;
+    setChecking(true); setDomainResult(null);
+    try {
+      const response = await fetch(`/api/domains/check?domain=${encodeURIComponent(domain)}`, { cache: "no-store" });
+      const result = await response.json() as { domain?: string; status?: DomainStatus; error?: string };
+      if (token !== searchToken.current) return;
+      if (!response.ok) throw new Error(result.error || "We could not check this domain.");
+      if (result.domain !== domain || !["registered", "no_record", "unknown"].includes(result.status || "")) throw new Error("We could not check this domain.");
+      setDomainName(cleaned);
+      setDomainResult({ domain, status: result.status! });
+    } catch (requestError) {
+      if (token === searchToken.current) setError(requestError instanceof Error ? requestError.message : "We could not check this domain.");
+    } finally {
+      if (token === searchToken.current) setChecking(false);
+    }
   }
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
@@ -62,11 +92,14 @@ export default function Home() {
           <div className="max-w-4xl"><p className="eyebrow">Domain + hosting, made simple</p><h1 className="mt-5 max-w-4xl text-5xl font-black leading-[1.02] tracking-[-0.055em] sm:text-7xl lg:text-[5.3rem]">Your brand deserves a <span className="text-blue-600">proper home</span> online.</h1><p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">Secure your domain, hosting and business email in one straightforward package—with real support when you need it.</p></div>
           <div id="finder" className="mt-11 max-w-4xl rounded-[1.65rem] border border-slate-200 bg-white p-3 shadow-[0_25px_75px_rgba(29,49,91,.13)]">
             <div className="flex flex-col gap-3 sm:flex-row">
-              <label className="flex min-h-16 flex-1 items-center gap-3 rounded-2xl bg-slate-50 px-5 ring-blue-600 focus-within:ring-2"><Search className="size-5 shrink-0 text-slate-400" aria-hidden="true" /><span className="sr-only">Domain name</span><input id="domain-search" value={domainName} onChange={(event) => setDomainName(event.target.value)} onKeyDown={(event) => event.key === "Enter" && startOrder()} placeholder="Enter your brand name" className="min-w-0 flex-1 bg-transparent py-4 text-base font-semibold outline-none placeholder:font-normal placeholder:text-slate-400" /></label>
-              <select aria-label="Domain extension" value={selected.extension} onChange={(event) => setSelected(packages.find((pkg) => pkg.extension === event.target.value) || packages[0])} className="min-h-16 rounded-2xl border border-slate-200 bg-white px-5 font-extrabold outline-none focus:border-blue-600 sm:w-32">{packages.map((pkg) => <option key={pkg.extension}>{pkg.extension}</option>)}</select>
-              <Button onClick={() => startOrder()} className="min-h-16 rounded-2xl bg-blue-600 px-7 text-base font-extrabold shadow-[0_12px_28px_rgba(37,84,235,.24)] hover:bg-blue-700">Check &amp; order <ArrowRight /></Button>
+              <label className="flex min-h-16 flex-1 items-center gap-3 rounded-2xl bg-slate-50 px-5 ring-blue-600 focus-within:ring-2"><Search className="size-5 shrink-0 text-slate-400" aria-hidden="true" /><span className="sr-only">Domain name</span><input id="domain-search" value={domainName} onChange={(event) => { resetSearch(); setDomainName(event.target.value); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void startOrder(); } }} placeholder="Enter your brand name" className="min-w-0 flex-1 bg-transparent py-4 text-base font-semibold outline-none placeholder:font-normal placeholder:text-slate-400" /></label>
+              <select aria-label="Domain extension" value={selected.extension} onChange={(event) => { resetSearch(); setSelected(packages.find((pkg) => pkg.extension === event.target.value) || packages[0]); }} className="min-h-16 rounded-2xl border border-slate-200 bg-white px-5 font-extrabold outline-none focus:border-blue-600 sm:w-32">{packages.map((pkg) => <option key={pkg.extension}>{pkg.extension}</option>)}</select>
+              <Button disabled={checking} onClick={() => void startOrder()} className="min-h-16 rounded-2xl bg-blue-600 px-7 text-base font-extrabold shadow-[0_12px_28px_rgba(37,84,235,.24)] hover:bg-blue-700">{checking ? "Checking…" : domainResult?.domain === fullDomain && domainResult.status === "no_record" ? "Continue request" : "Check domain"} <ArrowRight /></Button>
             </div>
-            {error && !dialogOpen && <p className="px-3 pb-1 pt-3 text-sm font-medium text-red-600">{error}</p>}
+            <div aria-live="polite">
+              {domainResult?.domain === fullDomain && !dialogOpen && <p className={`px-3 pb-1 pt-3 text-sm font-semibold ${domainResult.status === "registered" ? "text-red-700" : domainResult.status === "no_record" ? "text-emerald-700" : "text-amber-700"}`}>{domainResult.status === "registered" ? `${fullDomain} is already registered. Try a different name or extension.` : domainResult.status === "no_record" ? `No registration record found for ${fullDomain}. Continue to request it; we will confirm it can be purchased before payment.` : `Could not verify ${fullDomain} right now. Please try again shortly; no request or payment has been made.`}</p>}
+              {error && !dialogOpen && <p className="px-3 pb-1 pt-3 text-sm font-medium text-red-600">{error}</p>}
+            </div>
           </div>
           <div className="mt-7 flex flex-wrap gap-x-7 gap-y-3 text-sm font-semibold text-slate-600">{["Your details stay private", "Secure Paystack checkout", "Safe refund policy"].map((item) => <span key={item} className="flex items-center gap-2"><ShieldCheck className="size-4 text-emerald-600" />{item}</span>)}</div>
         </div>
@@ -98,7 +131,7 @@ export default function Home() {
         <div><p className="eyebrow">Questions, answered</p><h2 className="section-title mt-4">Buy with confidence.</h2><p className="mt-5 text-slate-600">Need more clarity? Message us directly on WhatsApp.</p></div>
         <Accordion type="single" collapsible defaultValue="ownership" className="rounded-3xl border border-slate-200 bg-white px-6 shadow-[0_18px_50px_rgba(24,43,82,.06)] sm:px-8">
           <AccordionItem value="ownership"><AccordionTrigger className="py-6 text-base font-extrabold hover:no-underline">Will I own the domain?</AccordionTrigger><AccordionContent className="pb-6 leading-7 text-slate-600">Yes. Your correct registrant details will be collected and used for the registration. Emstan Tech manages setup and support on your behalf.</AccordionContent></AccordionItem>
-          <AccordionItem value="availability"><AccordionTrigger className="py-6 text-base font-extrabold hover:no-underline">What if my requested domain is unavailable?</AccordionTrigger><AccordionContent className="pb-6 leading-7 text-slate-600">You can choose another available domain or receive a full refund for the affected package. We will never force you to accept a replacement you do not want.</AccordionContent></AccordionItem>
+          <AccordionItem value="availability"><AccordionTrigger className="py-6 text-base font-extrabold hover:no-underline">What if my requested domain is unavailable?</AccordionTrigger><AccordionContent className="pb-6 leading-7 text-slate-600">The search checks registration records and flags domains that are already registered. A name without a registration record might still be reserved, premium, or unavailable at the registrar, so we confirm the exact domain before asking for payment. You can choose another domain or receive a full refund for an unavailable domain. We will never force you to accept a replacement you do not want.</AccordionContent></AccordionItem>
           <AccordionItem value="renewal"><AccordionTrigger className="py-6 text-base font-extrabold hover:no-underline">What happens after the first year?</AccordionTrigger><AccordionContent className="pb-6 leading-7 text-slate-600">Before expiry, you can renew the domain only or renew the complete domain-and-hosting service. The applicable renewal price will be clearly communicated before payment.</AccordionContent></AccordionItem>
           <AccordionItem value="refund"><AccordionTrigger className="py-6 text-base font-extrabold hover:no-underline">Can I request a refund after registration?</AccordionTrigger><AccordionContent className="pb-6 leading-7 text-slate-600">If the domain is unavailable before registration, you are protected by our full-refund promise. Once a domain and hosting service have been successfully registered and provisioned, the order becomes non-refundable because the digital services have already been purchased for you.</AccordionContent></AccordionItem>
         </Accordion>

@@ -7,6 +7,7 @@ packages from Emstan Tech.
 
 - `.com`, `.org` and `.net` first-year packages
 - Responsive domain request form
+- Registry RDAP lookup for `.com`, `.org` and `.net`: identifies already-registered names and blocks them before request or new checkout
 - Server-side validation
 - Private order storage in Supabase
 - Manual domain approval before payment
@@ -25,8 +26,12 @@ packages from Emstan Tech.
 
 See `VERCEL_DEPLOYMENT.md` for the full deployment checklist.
 
-Important: no automatic availability lookup, registration, hosting provisioning, or
-email delivery is included. An approved request means a person has checked it;
+Important: a missing RDAP registration record is **not** a guarantee that a name can
+be purchased (it could be reserved, premium, or unavailable at your registrar).
+An unreachable registry returns "could not verify" and prevents a new request or
+checkout rather than claiming the name is available. Check the exact name, cost,
+and registrability in your registrar before approving a request. No automatic
+registration, hosting provisioning, or email delivery is included. An approved request means a person has checked it;
 payment is not proof the domain has already been registered.
 Dollar reference pricing is $20 for .com/.org and $23 for .net. Checkout charges
 ₦28,400 for .com/.org, independently of exchange-rate fluctuations. For .net,
