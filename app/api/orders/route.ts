@@ -26,7 +26,6 @@ function supabaseConnection() {
     url: process.env.SUPABASE_URL,
     headers: {
       apikey: secret,
-      Authorization: `Bearer ${secret}`,
       "Content-Type": "application/json",
     },
   };
