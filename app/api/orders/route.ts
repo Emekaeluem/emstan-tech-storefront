@@ -36,7 +36,10 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Record<string, unknown>;
 
     if (value(body.website)) {
-      return Response.json({ error: "Unable to submit request." }, { status: 400 });
+      return Response.json(
+        { error: "Unable to submit request." },
+        { status: 400 },
+      );
     }
 
     const fullName = value(body.fullName, 100);
@@ -46,7 +49,11 @@ export async function POST(request: Request) {
     const extension = value(body.extension, 10).toLowerCase();
     const acceptedTerms = body.acceptedTerms === true;
 
-    if (!fullName || !/^\S+@\S+\.\S+$/.test(email) || !/^\+?[0-9 ()-]{8,20}$/.test(phone)) {
+    if (
+      !fullName ||
+      !/^\S+@\S+\.\S+$/.test(email) ||
+      !/^\+?[0-9 ()-]{8,20}$/.test(phone)
+    ) {
       return Response.json(
         { error: "Enter a valid name, email and WhatsApp number." },
         { status: 400 },
@@ -69,6 +76,7 @@ export async function POST(request: Request) {
 
     const { url, headers } = supabaseConnection();
     const duplicateUrl = new URL(`${url}/rest/v1/orders`);
+
     duplicateUrl.searchParams.set("select", "reference,status");
     duplicateUrl.searchParams.set("email", `eq.${email}`);
     duplicateUrl.searchParams.set("domain", `eq.${domain}`);
@@ -80,7 +88,9 @@ export async function POST(request: Request) {
     });
 
     if (!duplicateResponse.ok) {
-      throw new Error("Supabase duplicate check failed.");
+      throw new Error(
+        `Supabase lookup failed: HTTP ${duplicateResponse.status}`,
+      );
     }
 
     const existing = (await duplicateResponse.json()) as Array<{
@@ -100,7 +110,10 @@ export async function POST(request: Request) {
 
     const insertResponse = await fetch(`${url}/rest/v1/orders`, {
       method: "POST",
-      headers: { ...headers, Prefer: "return=representation" },
+      headers: {
+        ...headers,
+        Prefer: "return=representation",
+      },
       body: JSON.stringify({
         id,
         reference,
@@ -117,7 +130,9 @@ export async function POST(request: Request) {
     });
 
     if (!insertResponse.ok) {
-      throw new Error("Supabase insert failed.");
+      throw new Error(
+        `Supabase insert failed: HTTP ${insertResponse.status}`,
+      );
     }
 
     const [order] = (await insertResponse.json()) as Array<{
@@ -128,6 +143,7 @@ export async function POST(request: Request) {
     return Response.json({ order }, { status: 201 });
   } catch (error) {
     console.error("Order submission failed", error);
+
     return Response.json(
       { error: "We could not save your request. Please try again." },
       { status: 500 },
