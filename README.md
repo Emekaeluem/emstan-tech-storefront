@@ -10,7 +10,7 @@ packages from Emstan Tech.
 - Server-side validation
 - Private order storage in Supabase
 - Manual domain approval before payment
-- Paystack test-mode checkout after approval and configured NGN prices
+- Paystack test-mode NGN/USD checkout after approval (USD must be enabled on your merchant account)
 - Server-side payment verification and signed Paystack webhook
 - Order-status page and printable payment receipt after verification
 - Safe refund and renewal information
@@ -27,3 +27,5 @@ See `VERCEL_DEPLOYMENT.md` for the full deployment checklist.
 Important: no automatic availability lookup, registration, hosting provisioning, or
 email delivery is included. An approved request means a person has checked it;
 payment is not proof the domain has already been registered.
+Dollar pricing is $20 for .com/.org and $23 for .net; naira checkout uses separate
+owner-configured prices. The website does not convert between currencies.

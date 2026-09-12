@@ -7,6 +7,8 @@ export type Order = {
   extension: string;
   status: string;
   amount_ngn_kobo: number | null;
+  amount_usd_cents: number;
+  payment_currency: "NGN" | "USD" | null;
   payment_reference: string | null;
   payment_url: string | null;
   paid_at: string | null;
@@ -21,7 +23,7 @@ function connection() {
 export async function findOrder(filters: Record<string, string>): Promise<Order | null> {
   const { base, headers } = connection();
   const url = new URL(base);
-  url.searchParams.set("select", "id,reference,full_name,email,domain,extension,status,amount_ngn_kobo,payment_reference,payment_url,paid_at");
+  url.searchParams.set("select", "id,reference,full_name,email,domain,extension,status,amount_ngn_kobo,amount_usd_cents,payment_currency,payment_reference,payment_url,paid_at");
   for (const [field, value] of Object.entries(filters)) url.searchParams.set(field, `eq.${value}`);
   url.searchParams.set("limit", "1");
   const response = await fetch(url, { headers, cache: "no-store" });
@@ -52,7 +54,9 @@ export function configuredPrice(extension: string): number | null {
 }
 
 export async function verifyOrderPayment(order: Order): Promise<Order> {
-  if (order.status !== "payment_pending" || !order.payment_reference || !order.amount_ngn_kobo) return order;
+  if (order.status !== "payment_pending" || !order.payment_reference || !order.payment_currency) return order;
+  const expectedAmount = order.payment_currency === "USD" ? order.amount_usd_cents : order.amount_ngn_kobo;
+  if (!expectedAmount) return order;
   const key = process.env.PAYSTACK_SECRET_KEY;
   if (!key) throw new Error("Paystack configuration missing");
   const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(order.payment_reference)}`, {
@@ -62,7 +66,7 @@ export async function verifyOrderPayment(order: Order): Promise<Order> {
   const result = (await response.json()) as { status?: boolean; data?: { status?: string; reference?: string; amount?: number; currency?: string; customer?: { email?: string }; paid_at?: string } };
   const payment = result.data;
   if (!result.status || !payment || payment.status !== "success") return order;
-  if (payment.reference !== order.payment_reference || payment.amount !== order.amount_ngn_kobo || payment.currency !== "NGN" || payment.customer?.email?.toLowerCase() !== order.email.toLowerCase()) {
+  if (payment.reference !== order.payment_reference || payment.amount !== expectedAmount || payment.currency !== order.payment_currency || payment.customer?.email?.toLowerCase() !== order.email.toLowerCase()) {
     console.error("Paystack payment does not match order", order.reference);
     return order;
   }
@@ -70,5 +74,10 @@ export async function verifyOrderPayment(order: Order): Promise<Order> {
 }
 
 export function publicOrder(order: Order) {
-  return { reference: order.reference, fullName: order.full_name, domain: order.domain, status: order.status, amountNgnKobo: order.amount_ngn_kobo ?? (order.status === "approved" ? configuredPrice(order.extension) : null), paidAt: order.paid_at };
+  return {
+    reference: order.reference, fullName: order.full_name, domain: order.domain, status: order.status,
+    amountNgnKobo: order.status === "approved" ? configuredPrice(order.extension) : order.amount_ngn_kobo,
+    amountUsdCents: order.amount_usd_cents, currency: order.payment_currency,
+    usdAvailable: process.env.PAYSTACK_USD_ENABLED === "true", paidAt: order.paid_at,
+  };
 }

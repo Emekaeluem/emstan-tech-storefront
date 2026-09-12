@@ -1,6 +1,12 @@
 -- Run once in Supabase SQL Editor before deploying the payment-enabled app.
 -- Existing orders and their statuses are preserved.
 alter table public.orders add column if not exists payment_reference text;
+alter table public.orders add column if not exists payment_currency text;
+alter table public.orders drop constraint if exists orders_payment_currency_check;
+alter table public.orders add constraint orders_payment_currency_check check (payment_currency in ('NGN', 'USD'));
+-- Preserve compatibility with naira-only checkouts started with the earlier ZIP.
+update public.orders set payment_currency = 'NGN'
+where payment_currency is null and payment_reference like '%-P1';
 alter table public.orders add column if not exists payment_url text;
 alter table public.orders add column if not exists paid_at timestamptz;
 create unique index if not exists orders_payment_reference_unique

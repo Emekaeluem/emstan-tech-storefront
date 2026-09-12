@@ -10,6 +10,7 @@ create table if not exists public.orders (
   extension text not null check (extension in ('.com', '.org', '.net')),
   amount_usd_cents integer not null,
   amount_ngn_kobo integer,
+  payment_currency text check (payment_currency in ('NGN', 'USD')),
   payment_reference text,
   payment_url text,
   paid_at timestamptz,
