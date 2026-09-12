@@ -8,6 +8,10 @@ export type Order = {
   status: string;
   amount_ngn_kobo: number | null;
   amount_usd_cents: number;
+  quote_expires_at: string | null;
+  fx_rate_ngn_per_usd: number | null;
+  fx_rate_updated_at: string | null;
+  fx_margin_percent: number | null;
   payment_currency: "NGN" | "USD" | null;
   payment_reference: string | null;
   payment_url: string | null;
@@ -23,7 +27,7 @@ function connection() {
 export async function findOrder(filters: Record<string, string>): Promise<Order | null> {
   const { base, headers } = connection();
   const url = new URL(base);
-  url.searchParams.set("select", "id,reference,full_name,email,domain,extension,status,amount_ngn_kobo,amount_usd_cents,payment_currency,payment_reference,payment_url,paid_at");
+  url.searchParams.set("select", "id,reference,full_name,email,domain,extension,status,amount_ngn_kobo,amount_usd_cents,quote_expires_at,fx_rate_ngn_per_usd,fx_rate_updated_at,fx_margin_percent,payment_currency,payment_reference,payment_url,paid_at");
   for (const [field, value] of Object.entries(filters)) url.searchParams.set(field, `eq.${value}`);
   url.searchParams.set("limit", "1");
   const response = await fetch(url, { headers, cache: "no-store" });
@@ -32,11 +36,12 @@ export async function findOrder(filters: Record<string, string>): Promise<Order 
   return rows[0] || null;
 }
 
-export async function changeOrder(reference: string, status: string, fields: Record<string, unknown>): Promise<Order | null> {
+export async function changeOrder(reference: string, status: string, fields: Record<string, unknown>, match: Record<string, string> = {}): Promise<Order | null> {
   const { base, headers } = connection();
   const url = new URL(base);
   url.searchParams.set("reference", `eq.${reference}`);
   url.searchParams.set("status", `eq.${status}`);
+  for (const [field, value] of Object.entries(match)) url.searchParams.set(field, `eq.${value}`);
   const response = await fetch(url, {
     method: "PATCH", headers: { ...headers, Prefer: "return=representation" },
     body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }), cache: "no-store",
@@ -45,12 +50,35 @@ export async function changeOrder(reference: string, status: string, fields: Rec
   return ((await response.json()) as Order[])[0] || null;
 }
 
-export function configuredPrice(extension: string): number | null {
-  const names: Record<string, string> = { ".com": "PRICE_COM_NGN_KOBO", ".org": "PRICE_ORG_NGN_KOBO", ".net": "PRICE_NET_NGN_KOBO" };
-  const raw = process.env[names[extension]];
-  if (!raw || !/^[1-9]\d*$/.test(raw)) return null;
-  const amount = Number(raw);
-  return Number.isSafeInteger(amount) && amount >= 10000 ? amount : null;
+const QUOTE_MS = 15 * 60 * 1000;
+const MAX_RATE_AGE_MS = 48 * 60 * 60 * 1000;
+
+export function validQuote(order: Order): boolean {
+  return order.status === "approved" && !!order.amount_ngn_kobo && !!order.quote_expires_at &&
+    !!order.fx_rate_updated_at && Date.parse(order.quote_expires_at) > Date.now() &&
+    Date.now() - Date.parse(order.fx_rate_updated_at) < MAX_RATE_AGE_MS &&
+    Date.parse(order.fx_rate_updated_at) <= Date.now() + 60_000;
+}
+
+export async function quoteApprovedOrder(order: Order): Promise<Order> {
+  if (order.status !== "approved" || validQuote(order)) return order;
+  const margin = Number(process.env.FX_MARGIN_PERCENT ?? "0");
+  if (!Number.isFinite(margin) || margin < 0 || margin > 20) throw new Error("Invalid FX_MARGIN_PERCENT configuration");
+  const response = await fetch("https://open.er-api.com/v6/latest/USD", { next: { revalidate: 3600 } });
+  if (!response.ok) throw new Error(`Exchange-rate service unavailable (${response.status})`);
+  const data = await response.json() as { result?: string; base_code?: string; rates?: { NGN?: number }; time_last_update_unix?: number };
+  const rate = data.rates?.NGN;
+  const updated = (data.time_last_update_unix ?? 0) * 1000;
+  if (data.result !== "success" || data.base_code !== "USD" || typeof rate !== "number" ||
+    !Number.isFinite(rate) || rate < 100 || rate > 10000 || updated > Date.now() + 60_000 || Date.now() - updated >= MAX_RATE_AGE_MS) {
+    throw new Error("Exchange rate is missing or out of date");
+  }
+  const amount = Math.ceil(order.amount_usd_cents * rate * (1 + margin / 100));
+  if (!Number.isSafeInteger(amount) || amount < 10000) throw new Error("Invalid converted checkout amount");
+  return (await changeOrder(order.reference, "approved", {
+    amount_ngn_kobo: amount, quote_expires_at: new Date(Date.now() + QUOTE_MS).toISOString(),
+    fx_rate_ngn_per_usd: rate, fx_rate_updated_at: new Date(updated).toISOString(), fx_margin_percent: margin,
+  })) || order;
 }
 
 export async function verifyOrderPayment(order: Order): Promise<Order> {
@@ -73,11 +101,16 @@ export async function verifyOrderPayment(order: Order): Promise<Order> {
   return (await changeOrder(order.reference, "payment_pending", { status: "paid", paid_at: payment.paid_at || new Date().toISOString() })) || order;
 }
 
-export function publicOrder(order: Order) {
+export function publicOrder(order: Order, rateError = false) {
   return {
     reference: order.reference, fullName: order.full_name, domain: order.domain, status: order.status,
-    amountNgnKobo: order.status === "approved" ? configuredPrice(order.extension) : order.amount_ngn_kobo,
+    amountNgnKobo: order.status === "approved" && !validQuote(order) ? null : order.amount_ngn_kobo,
     amountUsdCents: order.amount_usd_cents, currency: order.payment_currency,
     usdAvailable: process.env.PAYSTACK_USD_ENABLED === "true", paidAt: order.paid_at,
+    quoteExpiresAt: validQuote(order) ? order.quote_expires_at : null,
+    rateUpdatedAt: validQuote(order) ? order.fx_rate_updated_at : null,
+    fxRate: validQuote(order) ? order.fx_rate_ngn_per_usd : null,
+    fxMarginPercent: validQuote(order) ? order.fx_margin_percent : null,
+    rateError,
   };
 }

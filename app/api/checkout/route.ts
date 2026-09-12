@@ -1,8 +1,8 @@
-import { changeOrder, configuredPrice, findOrder } from "@/lib/order-payment";
+import { changeOrder, findOrder, validQuote } from "@/lib/order-payment";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as { reference?: string; email?: string; currency?: string };
+    const body = await request.json() as { reference?: string; email?: string; currency?: string; expectedAmountNgnKobo?: number; quoteExpiresAt?: string };
     const reference = body.reference?.trim().toUpperCase() || "";
     const email = body.email?.trim().toLowerCase() || "";
     if (!/^EMT-[A-Z0-9-]{10,48}$/.test(reference) || !/^\S+@\S+\.\S+$/.test(email)) return Response.json({ error: "Enter your order reference and email." }, { status: 400 });
@@ -13,8 +13,11 @@ export async function POST(request: Request) {
     const currency = body.currency;
     if (currency !== "NGN" && currency !== "USD") return Response.json({ error: "Choose naira or US dollars." }, { status: 400 });
     if (currency === "USD" && process.env.PAYSTACK_USD_ENABLED !== "true") return Response.json({ error: "Dollar checkout is not enabled on this Paystack account yet." }, { status: 503 });
-    const amount = currency === "USD" ? order.amount_usd_cents : configuredPrice(order.extension);
-    if (!amount || !Number.isSafeInteger(amount)) return Response.json({ error: "Checkout pricing is not configured yet. Please contact Emstan Tech." }, { status: 503 });
+    if (currency === "NGN" && (!validQuote(order) || body.expectedAmountNgnKobo !== order.amount_ngn_kobo || body.quoteExpiresAt !== order.quote_expires_at)) {
+      return Response.json({ error: "Your Naira quote changed or expired. Press Check status for a new price before paying." }, { status: 409 });
+    }
+    const amount = currency === "USD" ? order.amount_usd_cents : order.amount_ngn_kobo;
+    if (!amount || !Number.isSafeInteger(amount)) return Response.json({ error: "Checkout pricing is not available. Please contact Emstan Tech." }, { status: 503 });
     const key = process.env.PAYSTACK_SECRET_KEY;
     const appUrl = process.env.APP_BASE_URL;
     if (!key || !key.startsWith("sk_test_") || !appUrl || !/^https:\/\//.test(appUrl)) {
@@ -36,7 +39,7 @@ export async function POST(request: Request) {
       status: "payment_pending", payment_currency: currency,
       amount_ngn_kobo: currency === "NGN" ? amount : null,
       payment_reference: paymentReference, payment_url: data.data.authorization_url,
-    });
+    }, currency === "NGN" ? { quote_expires_at: order.quote_expires_at! } : {});
     if (!saved) return Response.json({ error: "Order changed during checkout. Please refresh its status." }, { status: 409 });
     return Response.json({ url: data.data.authorization_url });
   } catch (error) {

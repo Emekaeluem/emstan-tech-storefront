@@ -9,8 +9,9 @@
 
 If you already created the `orders` table, **do not recreate it**. Instead,
 run the additive `supabase/payment-migration.sql` in the Supabase SQL Editor.
-It retains existing orders and adds payment tracking fields. If you ran an
-earlier version of this migration, run this version again for the currency field.
+It retains existing orders and adds payment and exchange-quote fields. If you ran
+an earlier version of this migration, run the updated version again **before**
+uploading the updated website files.
 
 ## 2. Get the Supabase credentials
 
@@ -32,11 +33,10 @@ the `main` branch.
 4. Add `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, your Paystack test keys and
    `APP_BASE_URL` as environment variables.
    Set `APP_BASE_URL` to the exact HTTPS address of your production website.
-   Set `PRICE_COM_NGN_KOBO`, `PRICE_ORG_NGN_KOBO`, `PRICE_NET_NGN_KOBO`
-   to your **actual selling prices in kobo** (₦30,000 = `3000000`).
-   Do not invent a conversion from displayed USD prices. Blank naira prices block
-   NGN checkout; USD checkout is a separate, gated option.
-   The USD prices are already fixed in the order record at `$20` for `.com` or
+   Set `PAYSTACK_USD_ENABLED=false`. Optionally set `FX_MARGIN_PERCENT=0`
+   (default 0%; a larger percentage explicitly raises the NGN price). The old
+   `PRICE_*_NGN_KOBO` variables are no longer used and may be removed. No FX API
+   key is required. The USD reference prices are fixed at `$20` for `.com` or
    `.org` and `$23` for `.net`.
 5. Select **Deploy**.
 
@@ -56,10 +56,13 @@ the `main` branch.
    registered and you can supply the advertised hosting. Then set its
    `status` to `approved` and save. Never approve based on the website's search
    field: it only collects the domain; it does not query a registrar.
-4. At `/order`, enter the order reference and customer's email. Select an
-   available currency (USD or NGN), check its exact price, open Paystack and
-   use a Paystack test payment. The customer is charged in the selected
-   currency, not automatically converted from the other price.
+4. At `/order`, enter the order reference and customer's email. The website
+   retrieves a daily USD/NGN rate from ExchangeRate-API and displays an exact
+   NGN amount locked for 15 minutes. Select NGN, check the price, open Paystack
+   and use a Paystack test payment. If the quote expires, press **Check status**
+   for a new price; if rates are unavailable or stale, checkout stays blocked.
+   International cards may be charged in NGN if Paystack and the issuing bank
+   accept them; the issuer decides any currency conversion and fees.
    Return to `/order` and press **Check status** if needed. Once independently
    verified, the paid order shows a printable Emstan Tech payment receipt.
 5. Check unsuccessful/abandoned payments do **not** mark orders paid. For a

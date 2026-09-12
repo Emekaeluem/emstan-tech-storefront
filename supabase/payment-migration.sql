@@ -9,6 +9,11 @@ update public.orders set payment_currency = 'NGN'
 where payment_currency is null and payment_reference like '%-P1';
 alter table public.orders add column if not exists payment_url text;
 alter table public.orders add column if not exists paid_at timestamptz;
+-- The NGN quote is saved per approved order. Already-started payments keep their original price.
+alter table public.orders add column if not exists quote_expires_at timestamptz;
+alter table public.orders add column if not exists fx_rate_ngn_per_usd numeric;
+alter table public.orders add column if not exists fx_rate_updated_at timestamptz;
+alter table public.orders add column if not exists fx_margin_percent numeric;
 create unique index if not exists orders_payment_reference_unique
   on public.orders (payment_reference) where payment_reference is not null;
 

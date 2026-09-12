@@ -6,7 +6,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 type Currency = "NGN" | "USD";
-type Order = { reference: string; fullName: string; domain: string; status: string; amountNgnKobo: number | null; amountUsdCents: number; currency: Currency | null; usdAvailable: boolean; paidAt: string | null };
+type Order = { reference: string; fullName: string; domain: string; status: string; amountNgnKobo: number | null; amountUsdCents: number; currency: Currency | null; usdAvailable: boolean; paidAt: string | null; quoteExpiresAt: string | null; rateUpdatedAt: string | null; fxRate: number | null; fxMarginPercent: number | null; rateError: boolean };
 
 function OrderLookup() {
   const params = useSearchParams();
@@ -34,7 +34,7 @@ function OrderLookup() {
   async function checkout() {
     setWorking(true); setError("");
     try {
-      const response = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference, email, currency }) });
+      const response = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference, email, currency, expectedAmountNgnKobo: order?.amountNgnKobo, quoteExpiresAt: order?.quoteExpiresAt }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not open checkout.");
       if (!/^https:\/\/checkout\.paystack\.com\//.test(data.url)) throw new Error("Invalid checkout link.");
@@ -62,6 +62,8 @@ function OrderLookup() {
             <button type="button" onClick={() => setCurrency("NGN")} disabled={!order.amountNgnKobo} className={`rounded-xl border p-3 text-left disabled:cursor-not-allowed disabled:opacity-50 ${currency === "NGN" ? "border-blue-600 bg-white ring-2 ring-blue-100" : "border-slate-200 bg-white"}`}><span className="block text-xs font-bold text-slate-500">Naira</span><span className="text-lg font-black">{order.amountNgnKobo ? money(order.amountNgnKobo, "NGN") : "Not set"}</span></button>
           </div>
           {!order.usdAvailable && <p className="mt-2 text-xs text-slate-600">USD checkout will appear once Emstan Tech enables it with Paystack.</p>}
+          {order.amountNgnKobo && order.quoteExpiresAt && <p className="mt-3 text-xs leading-relaxed text-slate-600">Naira price locked until {new Date(order.quoteExpiresAt).toLocaleString("en-NG")}. Based on a daily USD/NGN rate of {order.fxRate?.toLocaleString("en-NG")} (updated {order.rateUpdatedAt && new Date(order.rateUpdatedAt).toLocaleDateString("en-NG")}) from <a className="underline" href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer">ExchangeRate-API</a>{order.fxMarginPercent ? `, plus a ${order.fxMarginPercent}% exchange buffer` : ", with no added exchange buffer"}. Paystack charges Naira; your card issuer may use a different conversion rate or charge fees.</p>}
+          {order.rateError && <p className="mt-3 text-xs text-amber-800">A fresh exchange rate is temporarily unavailable. No Naira checkout can start right now. Please press Check status again later.</p>}
           <button onClick={checkout} disabled={working || (currency === "USD" ? !order.usdAvailable : !order.amountNgnKobo)} className="mt-5 w-full rounded-xl bg-blue-600 px-6 py-3 font-bold text-white disabled:opacity-50">Pay {currency === "USD" ? money(order.amountUsdCents, "USD") : order.amountNgnKobo ? money(order.amountNgnKobo, "NGN") : ""} with Paystack</button>
         </>}
         {order.status === "payment_pending" && <><p className="mt-2 font-semibold">Payment has not been confirmed yet. If you just paid, try “Check status” again.</p><p className="mt-2">Amount: {order.currency === "USD" ? money(order.amountUsdCents, "USD") : order.amountNgnKobo ? money(order.amountNgnKobo, "NGN") : "—"}</p><button onClick={checkout} disabled={working} className="mt-5 w-full rounded-xl bg-blue-600 px-6 py-3 font-bold text-white disabled:opacity-60">Return to Paystack checkout</button></>}
