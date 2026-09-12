@@ -1,5 +1,8 @@
 # Emstan Tech deployment checklist
 
+**Already have the deployed test site?** For the staged real-NGN upgrade, follow
+`LIVE_LAUNCH.md` first. This document describes the initial test setup.
+
 ## 1. Create the Supabase table
 
 1. Open your Supabase project.
@@ -38,8 +41,9 @@ the `main` branch.
    Optionally set `FX_MARGIN_PERCENT=0`
    (default 0%; a larger percentage explicitly raises the NGN price). The old
    `PRICE_*_NGN_KOBO` variables are no longer used and may be removed. No FX API
-   key is required. The USD reference prices are fixed at `$20` for `.com` or
-   `.org` and `$23` for `.net`. To try USD **test payments only**, set
+   key is required. The `$20` reference packages (`.com` and `.org`) are charged
+   at a fixed **₦28,400**; the `$23` reference `.net` package retains a converted
+   NGN quote. To try USD **test payments only**, set
    `PAYSTACK_TEST_USD_ENABLED=true` in Production and redeploy. The old
    `PAYSTACK_USD_ENABLED` variable no longer enables a payment method.
 5. Select **Deploy**.
@@ -47,7 +51,7 @@ the `main` branch.
 ## 5. Configure the test checkout
 
 1. Keep the Paystack secret key in **test mode** (`sk_test_`). This app deliberately
-   rejects live keys while this payment flow is being tested. Never put it in GitHub.
+   rejects live keys in test mode. Never put it in GitHub.
    USD test checkout is separate from real USD merchant activation. Paystack
    requires Nigeria-based businesses to have an approved Zenith Bank USD
    domiciliary account to receive real USD payouts. Without it, a supported
@@ -61,8 +65,9 @@ the `main` branch.
    `status` to `approved` and save. Never approve based on the website's search
    field: it only collects the domain; it does not query a registrar.
 4. At `/order`, enter the order reference and customer's email. The website
-   retrieves a daily USD/NGN rate from ExchangeRate-API and displays an exact
-   NGN amount locked for 15 minutes. Select NGN, check the price, open Paystack
+   displays the exact NGN amount locked for 15 minutes. `.com` and `.org` are
+   fixed at ₦28,400, while `.net` uses the daily USD/NGN reference rate from
+   ExchangeRate-API. Select NGN, check the price, open Paystack
    and use a Paystack test payment. If the quote expires, press **Check status**
    for a new price; if rates are unavailable or stale, checkout stays blocked.
    International cards may be charged in NGN if Paystack and the issuing bank

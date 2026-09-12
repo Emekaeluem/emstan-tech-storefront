@@ -1,11 +1,29 @@
-// This storefront intentionally supports test payments only.
+export type PaymentMode = "test" | "live";
+
+export function currentPaymentMode(): PaymentMode {
+  return process.env.PAYSTACK_MODE === "live" ? "live" : "test";
+}
+
 export function paystackTestKey(): string | null {
-  const key = process.env.PAYSTACK_SECRET_KEY?.trim();
+  const key = (process.env.PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY)?.trim();
   return key && /^sk_test_[A-Za-z0-9_-]{8,}$/.test(key) && !/YOUR|PLACEHOLDER/i.test(key) ? key : null;
 }
 
+export function paystackLiveKey(): string | null {
+  const key = process.env.PAYSTACK_LIVE_SECRET_KEY?.trim();
+  return key && /^sk_live_[A-Za-z0-9_-]{8,}$/.test(key) && !/YOUR|PLACEHOLDER/i.test(key) ? key : null;
+}
+
+export function paymentSecretKey(mode: PaymentMode): string | null {
+  return mode === "live" ? paystackLiveKey() : paystackTestKey();
+}
+
+export function checkoutEnabled(mode: PaymentMode): boolean {
+  return mode === "test" || process.env.LIVE_CHECKOUT_ENABLED === "true";
+}
+
 export function usdTestEnabled(): boolean {
-  return process.env.PAYSTACK_TEST_USD_ENABLED === "true" && !!paystackTestKey();
+  return currentPaymentMode() === "test" && process.env.PAYSTACK_TEST_USD_ENABLED === "true" && !!paystackTestKey();
 }
 
 export function checkoutBaseUrl(): string | null {

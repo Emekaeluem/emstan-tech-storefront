@@ -10,8 +10,8 @@ packages from Emstan Tech.
 - Server-side validation
 - Private order storage in Supabase
 - Manual domain approval before payment
-- Paystack test-mode NGN checkout after approval; optional USD test checkout
-- Daily USD/NGN reference rate, 15-minute locked Naira quote, and source attribution
+- Isolated test/live Paystack orders; live NGN checkout requires explicit rollout flags
+- Fixed ₦28,400 first-year checkout for .com/.org ($20 reference); .net retains a 15-minute converted Naira quote ($23 reference)
 - Server-side payment verification and signed Paystack webhook
 - Order-status page and printable payment receipt after verification
 - Safe refund and renewal information
@@ -28,12 +28,13 @@ See `VERCEL_DEPLOYMENT.md` for the full deployment checklist.
 Important: no automatic availability lookup, registration, hosting provisioning, or
 email delivery is included. An approved request means a person has checked it;
 payment is not proof the domain has already been registered.
-Dollar reference pricing is $20 for .com/.org and $23 for .net. For NGN checkout,
-the server converts using ExchangeRate-API's daily USD/NGN reference rate
-(https://www.exchangerate-api.com), optionally adding the explicitly configured
+Dollar reference pricing is $20 for .com/.org and $23 for .net. Checkout charges
+₦28,400 for .com/.org, independently of exchange-rate fluctuations. For .net,
+the server still converts the $23 reference price using ExchangeRate-API's daily
+USD/NGN rate (https://www.exchangerate-api.com), optionally adding the configured
 `FX_MARGIN_PERCENT` (default 0). Each approved order receives a 15-minute locked
-quote. If a fresh rate cannot be obtained, NGN checkout is unavailable until a
-valid rate returns. The customer's foreign-card issuer may use a different rate
-and add fees. The website charges NGN by default. You can opt in to USD
-**test** checkout with `PAYSTACK_TEST_USD_ENABLED=true`; this never enables
-real USD collection. Live keys remain rejected pending a separate review.
+quote. If a fresh rate cannot be obtained, .net NGN checkout is unavailable until
+one returns; .com/.org remain unaffected. Foreign-card issuers may use a different
+rate and add fees. The website charges NGN by default. You can opt in to USD
+  **test** checkout with `PAYSTACK_TEST_USD_ENABLED=true`; this never enables
+real USD collection. See `LIVE_LAUNCH.md` before enabling real NGN payments.

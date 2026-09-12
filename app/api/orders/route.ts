@@ -68,10 +68,12 @@ export async function POST(request: Request) {
     }
 
     const { url, headers } = supabaseConnection();
+    const paymentMode = currentPaymentMode();
     const duplicateUrl = new URL(`${url}/rest/v1/orders`);
     duplicateUrl.searchParams.set("select", "reference,status");
     duplicateUrl.searchParams.set("email", `eq.${email}`);
     duplicateUrl.searchParams.set("domain", `eq.${domain}`);
+    duplicateUrl.searchParams.set("payment_mode", `eq.${paymentMode}`);
     duplicateUrl.searchParams.set("limit", "1");
 
     const duplicateResponse = await fetch(duplicateUrl, {
@@ -108,6 +110,7 @@ export async function POST(request: Request) {
         domain,
         extension,
         amount_usd_cents: packagePrices[extension],
+        payment_mode: paymentMode,
         status: "awaiting_review",
         terms_accepted_at: now,
         updated_at: now,
@@ -132,3 +135,4 @@ export async function POST(request: Request) {
     );
   }
 }
+import { currentPaymentMode } from "@/lib/paystack-config";

@@ -18,6 +18,7 @@ create table if not exists public.orders (
   payment_reference text,
   payment_url text,
   paid_at timestamptz,
+  payment_mode text not null default 'test' check (payment_mode in ('test', 'live')),
   status text not null default 'awaiting_review',
   terms_accepted_at timestamptz not null,
   created_at timestamptz not null default now(),
@@ -26,8 +27,8 @@ create table if not exists public.orders (
 
 create index if not exists orders_email_idx on public.orders (email);
 create index if not exists orders_status_idx on public.orders (status);
-create unique index if not exists orders_email_domain_unique
-  on public.orders (email, domain);
+create unique index if not exists orders_email_domain_mode_unique
+  on public.orders (email, domain, payment_mode);
 create unique index if not exists orders_payment_reference_unique
   on public.orders (payment_reference) where payment_reference is not null;
 
