@@ -30,25 +30,29 @@ the `main` branch.
 1. In Vercel, select **Add New > Project**.
 2. Import `emstan-tech-storefront` from GitHub.
 3. Keep **Framework Preset** as Next.js and **Root Directory** as `./`.
-4. Add `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, your Paystack test keys and
-   `APP_BASE_URL` as environment variables.
-   Set `APP_BASE_URL` to the exact HTTPS address of your production website.
-   Set `PAYSTACK_USD_ENABLED=false`. Optionally set `FX_MARGIN_PERCENT=0`
+4. Add `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `PAYSTACK_SECRET_KEY` (your
+   actual `sk_test_` key) as **Production** environment variables. Never upload
+   any keys to GitHub or paste them into chat. Set `APP_BASE_URL` to the exact
+   HTTPS address of your production website; if blank, checkout can use a
+   Vercel system URL when system environment variables are enabled in Vercel.
+   Optionally set `FX_MARGIN_PERCENT=0`
    (default 0%; a larger percentage explicitly raises the NGN price). The old
    `PRICE_*_NGN_KOBO` variables are no longer used and may be removed. No FX API
    key is required. The USD reference prices are fixed at `$20` for `.com` or
-   `.org` and `$23` for `.net`.
+   `.org` and `$23` for `.net`. To try USD **test payments only**, set
+   `PAYSTACK_TEST_USD_ENABLED=true` in Production and redeploy. The old
+   `PAYSTACK_USD_ENABLED` variable no longer enables a payment method.
 5. Select **Deploy**.
 
 ## 5. Configure the test checkout
 
 1. Keep the Paystack secret key in **test mode** (`sk_test_`). This app deliberately
    rejects live keys while this payment flow is being tested. Never put it in GitHub.
-   USD checkout is disabled until you confirm Paystack has activated USD
-   transactions for your business. For a Nigeria-based business, Paystack says
-   USD payout requires a verified Zenith Bank USD domiciliary account. Once
-   confirmed, add `PAYSTACK_USD_ENABLED=true` in Vercel and redeploy. Without
-   that flag, the website can display USD prices but will not initiate USD charges.
+   USD test checkout is separate from real USD merchant activation. Paystack
+   requires Nigeria-based businesses to have an approved Zenith Bank USD
+   domiciliary account to receive real USD payouts. Without it, a supported
+   foreign card can still try the NGN checkout, with its issuing bank handling
+   conversion. Do not collect real USD until Paystack has approved your account.
 2. On your Paystack test dashboard, set the test webhook URL to
    `https://YOUR-SITE.vercel.app/api/paystack/webhook`.
 3. Submit a test domain request. In Supabase **Table Editor → orders**, confirm
@@ -62,7 +66,10 @@ the `main` branch.
    and use a Paystack test payment. If the quote expires, press **Check status**
    for a new price; if rates are unavailable or stale, checkout stays blocked.
    International cards may be charged in NGN if Paystack and the issuing bank
-   accept them; the issuer decides any currency conversion and fees.
+   accept them; the issuer decides any currency conversion and fees. If you
+   enabled USD testing, try the **USD · test only** option on a separate newly
+   approved order with a Paystack test card. Paystack may reject USD checkout
+   for an account without USD enabled even when using test keys.
    Return to `/order` and press **Check status** if needed. Once independently
    verified, the paid order shows a printable Emstan Tech payment receipt.
 5. Check unsuccessful/abandoned payments do **not** mark orders paid. For a

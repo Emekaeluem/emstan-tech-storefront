@@ -10,7 +10,7 @@ packages from Emstan Tech.
 - Server-side validation
 - Private order storage in Supabase
 - Manual domain approval before payment
-- Paystack test-mode NGN checkout after approval; direct USD checkout remains gated
+- Paystack test-mode NGN checkout after approval; optional USD test checkout
 - Daily USD/NGN reference rate, 15-minute locked Naira quote, and source attribution
 - Server-side payment verification and signed Paystack webhook
 - Order-status page and printable payment receipt after verification
@@ -34,4 +34,6 @@ the server converts using ExchangeRate-API's daily USD/NGN reference rate
 `FX_MARGIN_PERCENT` (default 0). Each approved order receives a 15-minute locked
 quote. If a fresh rate cannot be obtained, NGN checkout is unavailable until a
 valid rate returns. The customer's foreign-card issuer may use a different rate
-and add fees. The website charges NGN, not USD, unless USD checkout is separately enabled.
+and add fees. The website charges NGN by default. You can opt in to USD
+**test** checkout with `PAYSTACK_TEST_USD_ENABLED=true`; this never enables
+real USD collection. Live keys remain rejected pending a separate review.

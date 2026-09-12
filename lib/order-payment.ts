@@ -1,3 +1,5 @@
+import { paystackTestKey, usdTestEnabled } from "@/lib/paystack-config";
+
 export type Order = {
   id: string;
   reference: string;
@@ -85,7 +87,7 @@ export async function verifyOrderPayment(order: Order): Promise<Order> {
   if (order.status !== "payment_pending" || !order.payment_reference || !order.payment_currency) return order;
   const expectedAmount = order.payment_currency === "USD" ? order.amount_usd_cents : order.amount_ngn_kobo;
   if (!expectedAmount) return order;
-  const key = process.env.PAYSTACK_SECRET_KEY;
+  const key = paystackTestKey();
   if (!key) throw new Error("Paystack configuration missing");
   const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(order.payment_reference)}`, {
     headers: { Authorization: `Bearer ${key}` }, cache: "no-store",
@@ -106,7 +108,7 @@ export function publicOrder(order: Order, rateError = false) {
     reference: order.reference, fullName: order.full_name, domain: order.domain, status: order.status,
     amountNgnKobo: order.status === "approved" && !validQuote(order) ? null : order.amount_ngn_kobo,
     amountUsdCents: order.amount_usd_cents, currency: order.payment_currency,
-    usdAvailable: process.env.PAYSTACK_USD_ENABLED === "true", paidAt: order.paid_at,
+    usdAvailable: usdTestEnabled(), paidAt: order.paid_at,
     quoteExpiresAt: validQuote(order) ? order.quote_expires_at : null,
     rateUpdatedAt: validQuote(order) ? order.fx_rate_updated_at : null,
     fxRate: validQuote(order) ? order.fx_rate_ngn_per_usd : null,

@@ -1,8 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { findOrder, verifyOrderPayment } from "@/lib/order-payment";
+import { paystackTestKey } from "@/lib/paystack-config";
 
 export async function POST(request: Request) {
-  const secret = process.env.PAYSTACK_SECRET_KEY;
+  const secret = paystackTestKey();
   const signature = request.headers.get("x-paystack-signature") || "";
   const raw = await request.text();
   if (!secret || !/^[a-f0-9]{128}$/i.test(signature)) return new Response(null, { status: 401 });
