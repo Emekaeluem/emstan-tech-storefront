@@ -24,7 +24,7 @@ export type Order = {
 function connection() {
   const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!process.env.SUPABASE_URL || !key) throw new Error("Supabase configuration missing");
-  return { base: `${process.env.SUPABASE_URL}/rest/v1/orders`, headers: { apikey: key, "Content-Type": "application/json" } };
+  return { base: `${process.env.SUPABASE_URL}/rest/v1/orders`, headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" } };
 }
 
 export async function findOrder(filters: Record<string, string>): Promise<Order | null> {
