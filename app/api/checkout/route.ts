@@ -38,6 +38,7 @@ export async function POST(request: Request) {
     const response = await fetch("https://api.paystack.co/transaction/initialize", {
       method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ email: order.email, amount, currency, reference: paymentReference,
+        channels: ["card", "bank_transfer", "bank", "ussd"],
         callback_url: `${appUrl.replace(/\/$/, "")}/order?order=${encodeURIComponent(reference)}`,
         metadata: { order_reference: reference, domain: order.domain, payment_mode: mode } }), cache: "no-store",
     });
