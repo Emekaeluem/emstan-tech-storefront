@@ -1,4 +1,5 @@
 import { findOrder, publicOrder, quoteApprovedOrder, verifyOrderPayment } from "@/lib/order-payment";
+import { sendPaymentEmail } from "@/lib/payment-email";
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +12,10 @@ export async function POST(request: Request) {
     const order = await findOrder({ reference, email });
     if (!order) return Response.json({ error: "Order not found. Check your reference and email." }, { status: 404 });
     const verified = await verifyOrderPayment(order);
+    if (verified.status === "paid") {
+      try { await sendPaymentEmail(verified); }
+      catch (error) { console.error("Payment email failed; payment remains confirmed", error); }
+    }
     let quoted = verified;
     let rateError = false;
     if (verified.status === "approved") {

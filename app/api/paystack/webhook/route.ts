@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { findOrder, verifyOrderPayment } from "@/lib/order-payment";
+import { sendPaymentEmail } from "@/lib/payment-email";
 import { paystackLiveKey, paystackTestKey, type PaymentMode } from "@/lib/paystack-config";
+import { findProcessingFeePayment, verifyProcessingFeePayment } from "@/lib/processing-fee";
 
 export async function POST(request: Request) {
   const signature = request.headers.get("x-paystack-signature") || "";
@@ -14,8 +16,16 @@ export async function POST(request: Request) {
   try {
     const event = JSON.parse(raw) as { event?: string; data?: { reference?: string } };
     if (event.event !== "charge.success" || !event.data?.reference) return new Response(null, { status: 200 });
+    if (event.data.reference.startsWith("EMT-FEE-")) {
+      const payment = await findProcessingFeePayment(event.data.reference);
+      if (payment && payment.payment_mode === signedMode) await verifyProcessingFeePayment(payment);
+      return new Response(null, { status: 200 });
+    }
     const order = await findOrder({ payment_reference: event.data.reference });
-    if (order && order.payment_mode === signedMode) await verifyOrderPayment(order);
+    if (order && order.payment_mode === signedMode) {
+      const verified = await verifyOrderPayment(order);
+      await sendPaymentEmail(verified);
+    }
     return new Response(null, { status: 200 });
   } catch (error) {
     console.error("Paystack webhook processing failed", error);
