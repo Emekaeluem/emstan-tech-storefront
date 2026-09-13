@@ -1,4 +1,5 @@
 import { paymentSecretKey, type PaymentMode } from "@/lib/paystack-config";
+import { supabaseRestConnection } from "@/lib/supabase-rest";
 
 export const PROCESSING_FEE_NGN_KOBO = 100_000;
 
@@ -14,21 +15,15 @@ export type ProcessingFeePayment = {
 };
 
 function supabaseHeaders(prefer?: string): HeadersInit {
-  const key = process.env.SUPABASE_SECRET_KEY?.trim() || "";
+  const { headers } = supabaseRestConnection("processing_fee_payments");
   return {
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-    "Content-Type": "application/json",
+    ...headers,
     ...(prefer ? { Prefer: prefer } : {}),
   };
 }
 
 function tableUrl(): string {
-  const base = process.env.SUPABASE_URL?.trim().replace(/\/$/, "");
-  if (!base || !process.env.SUPABASE_SECRET_KEY?.trim()) {
-    throw new Error("Supabase processing-fee storage is not configured");
-  }
-  return `${base}/rest/v1/processing_fee_payments`;
+  return supabaseRestConnection("processing_fee_payments").url;
 }
 
 export async function createProcessingFeePayment(payment: Omit<ProcessingFeePayment, "status" | "payment_url" | "paid_at">): Promise<ProcessingFeePayment> {

@@ -1,5 +1,6 @@
 import { checkDomain, validDomain } from "@/lib/domain-availability";
 import { currentPaymentMode } from "@/lib/paystack-config";
+import { supabaseRestConnection } from "@/lib/supabase-rest";
 
 const packagePrices: Record<string, number> = {
   ".com": 2000,
@@ -9,25 +10,6 @@ const packagePrices: Record<string, number> = {
 
 function value(input: unknown, limit = 160) {
   return typeof input === "string" ? input.trim().slice(0, limit) : "";
-}
-
-function supabaseConnection() {
-  const secret =
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!process.env.SUPABASE_URL || !secret) {
-    throw new Error("Supabase environment variables are missing.");
-  }
-
-  return {
-    url: process.env.SUPABASE_URL,
-    headers: {
-      apikey: secret,
-      Authorization: `Bearer ${secret}`,
-      "Content-Type": "application/json",
-    },
-  };
 }
 
 export async function POST(request: Request) {
@@ -66,9 +48,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const { url, headers } = supabaseConnection();
+    const { url, headers } = supabaseRestConnection("orders");
     const paymentMode = currentPaymentMode();
-    const duplicateUrl = new URL(`${url}/rest/v1/orders`);
+    const duplicateUrl = new URL(url);
     duplicateUrl.searchParams.set("select", "reference,status");
     duplicateUrl.searchParams.set("email", `eq.${email}`);
     duplicateUrl.searchParams.set("domain", `eq.${domain}`);
@@ -81,7 +63,12 @@ export async function POST(request: Request) {
     });
 
     if (!duplicateResponse.ok) {
-      throw new Error(`Supabase lookup failed: HTTP ${duplicateResponse.status}`);
+      const detail = await duplicateResponse.text();
+      console.error("Supabase order lookup failed", duplicateResponse.status, detail);
+      return Response.json(
+        { error: `We could not check existing requests (database ${duplicateResponse.status}).` },
+        { status: 500 },
+      );
     }
 
     const existing = (await duplicateResponse.json()) as Array<{
@@ -101,7 +88,7 @@ export async function POST(request: Request) {
     const reference = `EMT-${Date.now().toString(36).toUpperCase()}-${id.slice(0, 13).toUpperCase()}`;
     const now = new Date().toISOString();
 
-    const insertResponse = await fetch(`${url}/rest/v1/orders`, {
+    const insertResponse = await fetch(url, {
       method: "POST",
       headers: { ...headers, Prefer: "return=representation" },
       body: JSON.stringify({
@@ -121,7 +108,12 @@ export async function POST(request: Request) {
     });
 
     if (!insertResponse.ok) {
-      throw new Error(`Supabase insert failed: HTTP ${insertResponse.status}`);
+      const detail = await insertResponse.text();
+      console.error("Supabase order insert failed", insertResponse.status, detail);
+      return Response.json(
+        { error: `We could not save your request (database ${insertResponse.status}).` },
+        { status: 500 },
+      );
     }
 
     const [order] = (await insertResponse.json()) as Array<{
