@@ -14,6 +14,7 @@ packages from Emstan Tech.
 - Isolated test/live Paystack orders; live NGN checkout requires explicit rollout flags
 - Fixed ₦28,400 first-year checkout for .com/.org ($20 reference); .net retains a 15-minute converted Naira quote ($23 reference)
 - Server-side payment verification and signed Paystack webhook
+- Optional confirmation email after a verified live payment, listing the package benefits and clearly stating that registration and hosting setup are pending
 - Order-status page and printable payment receipt after verification
 - Safe refund and renewal information
 - Direct WhatsApp support
@@ -25,6 +26,18 @@ packages from Emstan Tech.
 3. Run `pnpm dev`.
 
 See `VERCEL_DEPLOYMENT.md` for the full deployment checklist.
+
+To enable the optional confirmation email, run `supabase/payment-email-migration.sql`
+before deploying this release. Verify a sending domain with Resend, then add
+`RESEND_API_KEY` (Secret) and `PAYMENT_EMAIL_FROM` (for example,
+`Emstan Tech <updates@your-verified-domain>`) to Vercel Production and redeploy.
+Never put either value in source code or a public environment variable.
+The email is sent to the order's saved address only after live payment verification.
+Repeated webhook and order-status checks share a database claim so they cannot
+send concurrent copies. Check provider logs for any email left claimed but not
+marked sent before resetting it manually; a provider acceptance is not proof of
+inbox delivery. Live checkout configuration is separate; email setup does not
+switch on real payments.
 
 Important: a missing RDAP registration record is **not** a guarantee that a name can
 be purchased (it could be reserved, premium, or unavailable at your registrar).
@@ -43,3 +56,6 @@ one returns; .com/.org remain unaffected. Foreign-card issuers may use a differe
 rate and add fees. The website charges NGN by default. You can opt in to USD
   **test** checkout with `PAYSTACK_TEST_USD_ENABLED=true`; this never enables
 real USD collection. See `LIVE_LAUNCH.md` before enabling real NGN payments.
+# Standalone ₦1,000 processing-fee checkout
+
+Run `supabase/processing-fee-migration.sql` once in the Supabase SQL Editor, deploy the updated project, then open `/processing-fee`. The page uses the active Paystack mode and clearly labels LIVE versus TEST before checkout. Processing-fee payments are stored separately in `public.processing_fee_payments` and are verified through both the return page and the signed Paystack webhook.
